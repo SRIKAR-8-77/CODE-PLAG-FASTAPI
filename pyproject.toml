@@ -1,4 +1,4 @@
-[tool.poetry]
+[project]
 name = "nf-2"
 version = "0.1.0"
 description = "Code Plagiarism Detection System using AI-generated code comparison"
