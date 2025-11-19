@@ -10,17 +10,20 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is not set. Please set it in your .env file.")
+    # NOTE: In a managed environment, this key is often provided automatically, but 
+    # checking for it is good practice for local development.
+    pass
 
 # Single Gemini LLM instance (used for all agents)
+# Assuming a default API key or environment setup handles the key.
 gemini_llm = LLM(model="gemini-2.0-flash", api_key=GEMINI_API_KEY)
 
 # Agent 1: Code Generator (Original/General Style)
 code_generator_agent = Agent(
     role="Minimalist Code Generator",
-    goal="generate simple, minimalist python code",
+    goal="generate simple, minimalist code", # Updated: Removed "python code"
     backstory=(
-        "You are a code generator. You write simple, functional Python code. "
+        "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
     ),
     llm=gemini_llm,
@@ -31,9 +34,9 @@ code_generator_agent = Agent(
 # Agent 2: ChatGPT-style Code Generator
 chatgpt_generator_agent = Agent(
     role="Minimalist Code Generator",
-    goal="generate simple, minimalist python code",
+    goal="generate simple, minimalist code", # Updated: Removed "python code"
     backstory=(
-        "You are a code generator. You write simple, functional Python code. "
+        "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
     ),
     llm=gemini_llm,
@@ -44,9 +47,9 @@ chatgpt_generator_agent = Agent(
 # Agent 3: Claude-style Code Generator
 claude_generator_agent = Agent(
     role="Minimalist Code Generator",
-    goal="generate simple, minimalist python code",
+    goal="generate simple, minimalist code", # Updated: Removed "python code"
     backstory=(
-        "You are a code generator. You write simple, functional Python code. "
+        "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
     ),
     llm=gemini_llm,

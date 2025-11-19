@@ -7,14 +7,14 @@ from agents import (
 )
 
 
-def create_code_generation_task(question: str, agent=None) -> Task:
-    """Create a Task that requests code generation for `question`."""
-    description = f"""Generate Python code for the following programming question:
+def create_code_generation_task(question: str, language: str, agent=None) -> Task:
+    """Create a Task that requests code generation for `question` in the specified language."""
+    description = f"""Generate {language} code for the following programming question:
 
 Question: {question}
 
 Requirements:
-- Write a minimalist Python code solution
+- Write a minimalist {language} code solution
 - DO NOT include any comments
 - Handle edge cases appropriately
 """
@@ -22,7 +22,7 @@ Requirements:
     return Task(
         description=description,
         agent=agent,
-        expected_output="A single block of Python code. Do not include markdown formatting or any explanatory text.",
+        expected_output=f"A single block of {language} code. Do not include markdown formatting or any explanatory text.",
     )
 
 
@@ -31,33 +31,37 @@ def create_plagiarism_detection_task(
     generated_code_original: str,
     generated_code_chatgpt: str,
     generated_code_claude: str,
-    question: str
+    question: str,
+    language: str 
 ) -> Task:
     """
     Create a task for detecting and listing similar lines between user code and AI-generated codes.
     """
+    # Define the dynamic language tag (lowercased for markdown block formatting)
+    language_tag = language.lower()
+    
     return Task(
         description=f"""
 Analyze the following code submissions for the programming question: "{question}"
 
 ---
 User-Submitted Code:
-```python
+```{language_tag}
 {user_code}
 ```
 ---
 Gemini Generated Code:
-```python
+```{language_tag}
 {generated_code_original}
 ```
 ---
 ChatGPT-style Generated Code:
-```python
+```{language_tag}
 {generated_code_chatgpt}
 ```
 ---
 Claude-style Generated Code:
-```python
+```{language_tag}
 {generated_code_claude}
 ```
 ---
