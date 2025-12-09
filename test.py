@@ -3,7 +3,7 @@ import json
 import sys
 
 # --- Configuration ---
-API_URL = "https://code-plag-fastapi.onrender.com"
+API_URL = "http://0.0.0.0:8000"
 TEST_QUESTION = "Write a function to compute the Nth Fibonacci number iteratively."
 TEST_LANGUAGE = "C++"
 
