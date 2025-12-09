@@ -184,6 +184,23 @@ class AnalyzeRequest(BaseModel):
     question: str
     user_code: str
 
+class GenerateRequest(BaseModel):
+    question: str
+
+
+@app.post("/generate")
+async def generate(request: GenerateRequest):
+    """Generates AI codes (gemini/chatgpt/claude) for the given question."""
+    try:
+        plagiarism_system = PlagiarismCheckSystem()
+        generated = plagiarism_system.generate_code_solution(request.question)
+        return JSONResponse(content={
+            "question": request.question,
+            "generated_codes": generated
+        })
+    except Exception as e:
+        print(f"Error during generation: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     try:
