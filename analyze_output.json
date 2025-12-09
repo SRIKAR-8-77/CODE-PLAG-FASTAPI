@@ -4,107 +4,82 @@
     "user_code": "\nint fibonacci(int n) {\n    if (n <= 1) {\n        return n;\n    }\n    int a = 0;\n    int b = 1;\n    for (int i = 2; i <= n; i++) {\n        int temp = a + b;\n        a = b;\n        b = temp;\n    }\n    return b;\n}\n",
     "generated_codes": {
         "original": "",
-        "chatgpt": "int fibonacciIterative(int n) {\n    if (n < 0) {\n        return -1;\n    }\n    if (n == 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    int a = 0;\n    int b = 1;\n    for (int i = 2; i <= n; ++i) {\n        int next = a + b;\n        a = b;\n        b = next;\n    }\n    return b;\n}",
-        "claude": "int fibonacci(int n) {\n    if (n == 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n    \n    int a = 0;\n    int b = 1;\n    for (int i = 2; i <= n; ++i) {\n        int next = a + b;\n        a = b;\n        b = next;\n    }\n    return b;\n}"
+        "chatgpt": "```cpp\n#include <iostream>\n\nlong long fibonacciIterative(int n) {\n    if (n <= 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    long long a = 0;\n    long long b = 1;\n    long long next;\n\n    for (int i = 2; i <= n; ++i) {\n        next = a + b;\n        a = b;\n        b = next;\n    }\n    return b;\n}\n\n// int main() {\n//     std::cout << fibonacciIterative(0) << std::endl;  // Expected: 0\n//     std::cout << fibonacciIterative(1) << std::endl;  // Expected: 1\n//     std::cout << fibonacciIterative(2) << std::endl;  // Expected: 1\n//     std::cout << fibonacciIterative(3) << std::endl;  // Expected: 2\n//     std::cout << fibonacciIterative(4) << std::endl;  // Expected: 3\n//     std::cout << fibonacciIterative(10) << std::endl; // Expected: 55\n//     std::cout << fibonacciIterative(40) << std::endl; // Expected: 102334155\n//     return 0;\n// }\n```",
+        "claude": "int fibonacciIterative(int n) {\n    if (n < 0) {\n        return -1; // Or throw an exception, returning -1 for invalid input\n    }\n    if (n == 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    int a = 0;\n    int b = 1;\n    int c;\n\n    for (int i = 2; i <= n; ++i) {\n        c = a + b;\n        a = b;\n        b = c;\n    }\n\n    return b;\n}"
     },
     "similar_lines": {
         "gemini_vs_user": [],
         "chatgpt_vs_user": [
             {
-                "user_line_number": 5,
-                "ai_line_number": 12,
-                "line_content": "    int a = 0;"
-            },
-            {
-                "user_line_number": 6,
-                "ai_line_number": 13,
-                "line_content": "    int b = 1;"
-            },
-            {
-                "user_line_number": 7,
-                "ai_line_number": 14,
-                "line_content": "    for (int i = 2; i <= n; ++i) {"
-            },
-            {
-                "user_line_number": 8,
-                "ai_line_number": 15,
-                "line_content": "        int next = a + b;"
+                "user_line_number": 4,
+                "ai_line_number": 6,
+                "line_content": "    }"
             },
             {
                 "user_line_number": 9,
-                "ai_line_number": 16,
+                "ai_line_number": 17,
                 "line_content": "        a = b;"
             },
             {
-                "user_line_number": 10,
-                "ai_line_number": 17,
-                "line_content": "        b = next;"
-            },
-            {
                 "user_line_number": 11,
-                "ai_line_number": 18,
+                "ai_line_number": 19,
                 "line_content": "    }"
             },
             {
                 "user_line_number": 12,
-                "ai_line_number": 19,
+                "ai_line_number": 20,
                 "line_content": "    return b;"
             },
             {
                 "user_line_number": 13,
-                "ai_line_number": 20,
+                "ai_line_number": 21,
                 "line_content": "}"
             }
         ],
         "claude_vs_user": [
             {
-                "user_line_number": 1,
-                "ai_line_number": 1,
-                "line_content": "int fibonacci(int n) {"
+                "user_line_number": 4,
+                "ai_line_number": 4,
+                "line_content": "    }"
+            },
+            {
+                "user_line_number": 4,
+                "ai_line_number": 7,
+                "line_content": "    }"
+            },
+            {
+                "user_line_number": 4,
+                "ai_line_number": 10,
+                "line_content": "    }"
             },
             {
                 "user_line_number": 5,
-                "ai_line_number": 9,
+                "ai_line_number": 12,
                 "line_content": "    int a = 0;"
             },
             {
                 "user_line_number": 6,
-                "ai_line_number": 10,
+                "ai_line_number": 13,
                 "line_content": "    int b = 1;"
             },
             {
-                "user_line_number": 7,
-                "ai_line_number": 11,
-                "line_content": "    for (int i = 2; i <= n; ++i) {"
-            },
-            {
-                "user_line_number": 8,
-                "ai_line_number": 12,
-                "line_content": "        int next = a + b;"
-            },
-            {
                 "user_line_number": 9,
-                "ai_line_number": 13,
+                "ai_line_number": 18,
                 "line_content": "        a = b;"
             },
             {
-                "user_line_number": 10,
-                "ai_line_number": 14,
-                "line_content": "        b = next;"
-            },
-            {
                 "user_line_number": 11,
-                "ai_line_number": 15,
+                "ai_line_number": 20,
                 "line_content": "    }"
             },
             {
                 "user_line_number": 12,
-                "ai_line_number": 16,
+                "ai_line_number": 22,
                 "line_content": "    return b;"
             },
             {
                 "user_line_number": 13,
-                "ai_line_number": 17,
+                "ai_line_number": 23,
                 "line_content": "}"
             }
         ]

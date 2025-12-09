@@ -107,7 +107,7 @@ class PlagiarismCheckSystem:
                 "int example(int n) {\n    return n;\n}\n"
             )
             sample = sample_py if language.lower().startswith("py") else sample_cpp
-            return {"original": sample, "chatgpt": sample, "claude": sample}
+            return {"original": sample, "gemini": sample, "chatgpt": sample, "claude": sample}
 
         # Create Crew Task objects and run agents
         task_original = create_code_generation_task(question, language, agent=code_generator_agent)
@@ -123,7 +123,8 @@ class PlagiarismCheckSystem:
         chatgpt = run_agent(chatgpt_generator_agent, task_chatgpt)
         claude = run_agent(claude_generator_agent, task_claude)
 
-        return {"original": original, "chatgpt": chatgpt, "claude": claude}
+        # Return both 'original' and 'gemini' keys for compatibility (gemini == original)
+        return {"original": original, "gemini": original, "chatgpt": chatgpt, "claude": claude}
 
     def _local_find_similar_lines(self, a: str, b: str) -> list:
         """Simple exact-line matching (whitespace normalized) used in MOCK_MODE."""
