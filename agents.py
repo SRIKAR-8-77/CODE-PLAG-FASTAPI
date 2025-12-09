@@ -16,7 +16,7 @@ if not GEMINI_API_KEY:
 
 # Single Gemini LLM instance (used for all agents)
 # Assuming a default API key or environment setup handles the key.
-gemini_llm = LLM(model="gemini-2.0-flash", api_key=GEMINI_API_KEY)
+gemini_llm = LLM(model="gemini-2.5-flash", api_key=GEMINI_API_KEY)
 
 # Agent 1: Code Generator (Original/General Style)
 code_generator_agent = Agent(

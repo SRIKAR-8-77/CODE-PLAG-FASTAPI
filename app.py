@@ -11,109 +11,119 @@ from agents import (
 )
 import json
 import re
-import logging # <-- NEW: Import logging module
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
-# --- NEW: Configure basic logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-# ------------------------------------
-
 class PlagiarismCheckSystem:
-    """System for detecting plagiarism, refactored to be stateless."""
+    """System for detecting plagiarism in student code submissions"""
     
-    def _clean_code_output(self, raw_output: str, language: str) -> str:
-        """Removes markdown formatting and other text from code output, using the specified language."""
-        # Use the language variable (lowercased) to match the code block markdown
-        language_tag = language.lower()
-        # Search for the pattern ```<language>\n...\n```
-        code_match = re.search(r"```" + re.escape(language_tag) + r"\n(.*?)\n```", raw_output, re.DOTALL)
+    def __init__(self):
+        self.generated_code_original = None
+        self.generated_code_chatgpt = None
+        self.generated_code_claude = None
+        self.question = None
+    
+    def _clean_code_output(self, raw_output: str) -> str:
+        """Removes markdown formatting and other text from code output."""
+        code_match = re.search(r"```python\n(.*?)\n```", raw_output, re.DOTALL)
         if code_match:
             return code_match.group(1).strip()
         
         # Fallback: if no markdown, strip and assume it's all code
         return raw_output.strip()
 
-    def generate_code_solution(self, question: str, language: str) -> dict:
+    def generate_code_solution(self, question: str) -> dict:
         """
-        Step 1: Generate code using Gemini in 3 different styles for the specified language.
+        Step 1: Generate code using Gemini in 3 different styles:
+        - Original (general)
+        - ChatGPT-style
+        - Claude-style
+        
+        Args:
+            question: The programming problem/question
+            
+        Returns:
+            Dictionary with generated code from each style
         """
         print("\n" + "="*60)
         print("STEP 1: CODE GENERATION (3 STYLES)")
         print("="*60)
-        print(f"Question: {question} (Language: {language})\n")
+        print(f"Question: {question}\n")
+        
+        self.question = question
 
-        # Define generation and cleaning logic
-        def generate_and_clean(agent, task):
-            crew = Crew(agents=[agent], tasks=[task], verbose=False)
-            result = crew.kickoff()
-            # Pass language to the cleaning function
-            return self._clean_code_output(str(result), language)
-
-        # Create tasks, passing the language
-        task_original = create_code_generation_task(question, language, agent=code_generator_agent)
-        task_chatgpt = create_code_generation_task(question, language, agent=chatgpt_generator_agent)
-        task_claude = create_code_generation_task(question, language, agent=claude_generator_agent)
+        # Create tasks
+        task_original = create_code_generation_task(question, agent=code_generator_agent)
+        task_chatgpt = create_code_generation_task(question, agent=chatgpt_generator_agent)
+        task_claude = create_code_generation_task(question, agent=claude_generator_agent)
 
         # Generate code with Original style
         print("Generating with Original style...")
-        generated_code_original = generate_and_clean(code_generator_agent, task_original)
+        crew_original = Crew(agents=[code_generator_agent], tasks=[task_original], verbose=False)
+        result_original = crew_original.kickoff()
+        self.generated_code_original = self._clean_code_output(str(result_original))
         print("✓ Original style code generated")
 
         # Generate code with ChatGPT style
         print("Generating with ChatGPT-style...")
-        generated_code_chatgpt = generate_and_clean(chatgpt_generator_agent, task_chatgpt)
+        crew_chatgpt = Crew(agents=[chatgpt_generator_agent], tasks=[task_chatgpt], verbose=False)
+        result_chatgpt = crew_chatgpt.kickoff()
+        self.generated_code_chatgpt = self._clean_code_output(str(result_chatgpt))
         print("✓ ChatGPT-style code generated")
 
         # Generate code with Claude style
         print("Generating with Claude-style...")
-        generated_code_claude = generate_and_clean(claude_generator_agent, task_claude)
+        crew_claude = Crew(agents=[claude_generator_agent], tasks=[task_claude], verbose=False)
+        result_claude = crew_claude.kickoff()
+        self.generated_code_claude = self._clean_code_output(str(result_claude))
         print("✓ Claude-style code generated")
 
         return {
-            "gemini": generated_code_original,
-            "chatgpt": generated_code_chatgpt,
-            "claude": generated_code_claude,
+            "original": self.generated_code_original,
+            "chatgpt": self.generated_code_chatgpt,
+            "claude": self.generated_code_claude,
         }
     
-    def check_plagiarism(
-        self,
-        user_code: str,
-        question: str,
-        generated_code_original: str,
-        generated_code_chatgpt: str,
-        generated_code_claude: str,
-        language: str
-    ) -> dict:
+
+    def check_plagiarism(self, user_code: str) -> dict:
         """
-        Step 2: Use the plagiarism_detector_agent to detect similar lines.
+        Step 2: Use the plagiarism_detector_agent to detect similar lines
+        between user code and all generated codes.
         """
+        if not self.generated_code_original or not self.question:
+            # Handle case where generation might have failed
+            self.generated_code_original = self.generated_code_original or "print('Error: AI code not generated')"
+            self.generated_code_chatgpt = self.generated_code_chatgpt or "print('Error: AI code not generated')"
+            self.generated_code_claude = self.generated_code_claude or "print('Error: AI code not generated')"
+            if not self.question:
+                 raise ValueError("Question is missing. Cannot proceed.")
+
         print("\n" + "="*60)
         print("STEP 2: PLAGIARISM DETECTION (AGENT BASED)")
         print("="*60)
 
-        # Create a CrewAI task for the plagiarism agent, passing the language
+        # Create a CrewAI task for the plagiarism agent
         task = create_plagiarism_detection_task(
             user_code=user_code,
-            generated_code_original=generated_code_original,
-            generated_code_chatgpt=generated_code_chatgpt,
-            generated_code_claude=generated_code_claude,
-            question=question,
-            language=language
+            generated_code_original=self.generated_code_original,
+            generated_code_chatgpt=self.generated_code_chatgpt,
+            generated_code_claude=self.generated_code_claude,
+            question=self.question
         )
         crew = Crew(agents=[plagiarism_detector_agent], tasks=[task], verbose=False)
         
         print("Agent is analyzing similar lines...")
+        # FIX 1: crew.kickoff() returns an object. Convert it to a string.
         agent_output = crew.kickoff()
         agent_result_str = str(agent_output) 
         print("✓ Analysis complete.")
 
         # Try to parse the agent's JSON output
         try:
+            # The agent's raw output might be wrapped in markdown or other text
             json_start = agent_result_str.find('{')
             json_end = agent_result_str.rfind('}') + 1
             if json_start != -1 and json_end != -1:
@@ -127,6 +137,7 @@ class PlagiarismCheckSystem:
             # Return a structured error
             result = {
                 "error": "Failed to parse agent output.",
+                # FIX 2: Ensure raw_output is a string, not the CrewOutput object
                 "raw_output": agent_result_str,
                 "gemini_vs_user": [],
                 "chatgpt_vs_user": [],
@@ -134,6 +145,30 @@ class PlagiarismCheckSystem:
             }
         
         return result
+    
+    def full_analysis(self, question: str, user_code: str) -> dict:
+        """
+        Complete workflow: Generate code in 3 styles and check plagiarism (line matching)
+        """
+        # Step 1: Generate codes
+        generated_codes = self.generate_code_solution(question)
+        
+        # Step 2: Check for similar lines
+        plagiarism_line_report = self.check_plagiarism(user_code)
+        
+        # Step 3: Combine all information for the frontend
+        final_report = {
+            "question": question,
+            "user_code": user_code,
+            "generated_codes": {
+                "gemini": generated_codes.get("original"),
+                "chatgpt": generated_codes.get("chatgpt"),
+                "claude": generated_codes.get("claude")
+            },
+            "similar_lines": plagiarism_line_report # This contains the { gemini_vs_user, ... } structure
+        }
+        
+        return final_report
 
 
 app = FastAPI()
@@ -145,83 +180,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Pydantic Models for the two-step process ---
-class GenerateRequest(BaseModel):
-    question: str
-    language: str # Added language for dynamic generation
-
 class AnalyzeRequest(BaseModel):
     question: str
     user_code: str
-    gemini_code: str
-    chatgpt_code: str
-    claude_code: str
-    language: str # Added language for dynamic analysis formatting
 
-# --- Endpoint 1: Code Generation ---
-@app.post("/generate")
-async def generate(request: GenerateRequest):
-    """Generates AI codes based on the question and specified language."""
-    # --- NEW: Log incoming request data ---
-    logger.info(f"REQUEST /generate: Question='{request.question[:50]}...', Language='{request.language}'")
-    
-    try:
-        plagiarism_system = PlagiarismCheckSystem()
-        # Pass language to the system method
-        generated_codes = plagiarism_system.generate_code_solution(
-            request.question,
-            request.language
-        )
-        
-        response_content = {
-            "question": request.question,
-            "language": request.language,
-            "generated_codes": generated_codes
-        }
-
-        # --- NEW: Log successful response data ---
-        logger.info(f"RESPONSE /generate: Successfully generated codes for {request.language}. Keys: {list(generated_codes.keys())}")
-
-        return JSONResponse(content=response_content)
-    except Exception as e:
-        # --- UPDATED: Log errors with context ---
-        logger.error(f"ERROR /generate: Failed for question '{request.question[:50]}...'. Error: {e}", exc_info=True)
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-# --- Endpoint 2: Plagiarism Analysis (Similar Lines) ---
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
-    """Analyzes user code against AI codes to find similar lines."""
-    # --- NEW: Log incoming request data ---
-    logger.info(f"REQUEST /analyze: Question='{request.question[:50]}...', Language='{request.language}', User Code Length: {len(request.user_code)}")
-    
     try:
         plagiarism_system = PlagiarismCheckSystem()
-        
-        # Pass language to the system method
-        plagiarism_line_report = plagiarism_system.check_plagiarism(
-            user_code=request.user_code,
-            question=request.question,
-            generated_code_original=request.gemini_code,
-            generated_code_chatgpt=request.chatgpt_code,
-            generated_code_claude=request.claude_code,
-            language=request.language
-        )
-        
-        response_content = {
-            "question": request.question,
-            "language": request.language,
-            "user_code": request.user_code,
-            "similar_lines": plagiarism_line_report
-        }
-
-        # --- NEW: Log successful response data ---
-        # Log the number of matches found in the most important comparison (Gemini vs User)
-        num_matches = len(plagiarism_line_report.get('gemini_vs_user', []))
-        logger.info(f"RESPONSE /analyze: Analysis complete for {request.language}. Found {num_matches} similar lines (Gemini vs User).")
-
-        return JSONResponse(content=response_content)
+        result = plagiarism_system.full_analysis(request.question, request.user_code)
+        # result now contains { question, user_code, generated_codes, similar_lines }
+        return JSONResponse(content=result)
     except Exception as e:
-        # --- UPDATED: Log errors with context ---
-        logger.error(f"ERROR /analyze: Failed for question '{request.question[:50]}...'. Error: {e}", exc_info=True)
+        print(f"Error during analysis: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
