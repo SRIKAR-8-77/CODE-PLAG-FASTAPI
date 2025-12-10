@@ -31,7 +31,7 @@ from typing import Optional, Dict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from crewai import Crew
 from tasks import (
@@ -60,6 +60,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Simple health route
+@app.get("/", response_class=PlainTextResponse)
+async def root():
+    return "ok"
 
 
 # -------------------- Pydantic models --------------------
