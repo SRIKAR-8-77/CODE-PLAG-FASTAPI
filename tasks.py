@@ -66,9 +66,9 @@ Claude-style Generated Code:
 ```
 ---
 
-Your task is to perform three separate comparisons and identify all identical or near-identical lines of code.
+Your task is to perform three separate comparisons and identify all identical or structurally similar lines of code.
 Do not calculate a percentage. Only list the matching lines.
-Lines should be considered similar if they are identical or have only minor whitespace differences.
+Lines should be considered similar if they share the same logic or structure, even if variable names (e.g., 'a' vs 'x') or exact spacing differ.
 List line numbers starting from 1 for each code block.
 
 1.  **Compare User Code vs. Gemini Generated Code:**
