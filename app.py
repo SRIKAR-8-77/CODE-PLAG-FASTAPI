@@ -84,6 +84,40 @@ class AnalyzeRequest(BaseModel):
     claude_code: Optional[str] = None
 
 
+def extract_json_from_text(text: str) -> Optional[dict]:
+    """
+    Robustly extract a JSON object from text that may contain markdown or other noise.
+    """
+    # 1. Search for the start of the JSON object by looking for one of the specific keys we expect.
+    match = re.search(r"\{\s*[\"']gemini_vs_user[\"']", text)
+    if not match:
+        # Fallback: look for just a brace if generic
+        match = re.search(r"\{", text)
+
+    if match:
+        json_start = match.start()
+        
+        # Attempt 1: Standard JSON decoder (raw_decode handles trailing text)
+        try:
+            decoder = json.JSONDecoder()
+            parsed, _ = decoder.raw_decode(text, idx=json_start)
+            return parsed
+        except json.JSONDecodeError:
+            pass
+
+        # Attempt 2: ast.literal_eval (for single quotes or Python-like dicts)
+        # We need a rough end point. Last closing brace is a good guess.
+        json_end = text.rfind("}") + 1
+        if json_end > json_start:
+            candidate = text[json_start:json_end]
+            try:
+                parsed = ast.literal_eval(candidate)
+                return parsed
+            except Exception:
+                pass
+    
+    return None
+
 # -------------------- Helper system class --------------------
 class PlagiarismCheckSystem:
     """System to generate code and detect similar lines."""
@@ -97,6 +131,10 @@ class PlagiarismCheckSystem:
         m = re.search(pattern, raw, re.DOTALL)
         if m:
             return m.group(1).strip()
+        # Fallback to generic fence if specific language fence is missing
+        match_generic = re.search(r"```\n(.*?)\n```", raw, re.DOTALL)
+        if match_generic:
+             return match_generic.group(1).strip()
         return raw.strip()
 
     def generate_code_solution(self, question: str, language: str) -> Dict[str, str]:
@@ -114,10 +152,10 @@ class PlagiarismCheckSystem:
                 "int example(int n) {\n    return n;\n}\n"
             )
             sample = sample_py if language.lower().startswith("py") else sample_cpp
-            return {"original": sample, "gemini": sample, "chatgpt": sample, "claude": sample}
+            return {"gemini": sample, "chatgpt": sample, "claude": sample}
 
         # Create Crew Task objects and run agents
-        task_original = create_code_generation_task(question, language, agent=code_generator_agent)
+        task_gemini = create_code_generation_task(question, language, agent=code_generator_agent)
         task_chatgpt = create_code_generation_task(question, language, agent=chatgpt_generator_agent)
         task_claude = create_code_generation_task(question, language, agent=claude_generator_agent)
 
@@ -126,12 +164,11 @@ class PlagiarismCheckSystem:
             out = crew.kickoff()
             return self._strip_code_fence(str(out), language)
 
-        original = run_agent(code_generator_agent, task_original)
+        gemini = run_agent(code_generator_agent, task_gemini)
         chatgpt = run_agent(chatgpt_generator_agent, task_chatgpt)
         claude = run_agent(claude_generator_agent, task_claude)
 
-        # Return both 'original' and 'gemini' keys for compatibility (gemini == original)
-        return {"original": original, "gemini": original, "chatgpt": chatgpt, "claude": claude}
+        return {"gemini": gemini, "chatgpt": chatgpt, "claude": claude}
 
     def _local_find_similar_lines(self, a: str, b: str) -> list:
         """Simple exact-line matching (whitespace normalized) used in MOCK_MODE."""
@@ -144,7 +181,7 @@ class PlagiarismCheckSystem:
                     matches.append({"user_line_number": i, "ai_line_number": j, "line_content": la})
         return matches
 
-    def check_plagiarism(self, user_code: str, question: str, generated_code_original: str, generated_code_chatgpt: str, generated_code_claude: str, language: str) -> dict:
+    def check_plagiarism(self, user_code: str, question: str, generated_code_gemini: str, generated_code_chatgpt: str, generated_code_claude: str, language: str) -> dict:
         """Return similar-line lists for each comparison.
 
         If MOCK_MODE -> use local matcher. Otherwise delegate to the plagiarism_detector_agent (Crew task).
@@ -153,7 +190,7 @@ class PlagiarismCheckSystem:
 
         if MOCK_MODE:
             return {
-                "gemini_vs_user": self._local_find_similar_lines(user_code, generated_code_original),
+                "gemini_vs_user": self._local_find_similar_lines(user_code, generated_code_gemini),
                 "chatgpt_vs_user": self._local_find_similar_lines(user_code, generated_code_chatgpt),
                 "claude_vs_user": self._local_find_similar_lines(user_code, generated_code_claude),
             }
@@ -161,7 +198,7 @@ class PlagiarismCheckSystem:
         # Build and run the agent task
         task = create_plagiarism_detection_task(
             user_code=user_code,
-            generated_code_original=generated_code_original or "",
+            generated_code_gemini=generated_code_gemini or "",
             generated_code_chatgpt=generated_code_chatgpt or "",
             generated_code_claude=generated_code_claude or "",
             question=question,
@@ -171,27 +208,13 @@ class PlagiarismCheckSystem:
         out = crew.kickoff()
         out_str = str(out)
 
-        # Try to extract JSON from agent output
-        json_start = out_str.find("{")
-        json_end = out_str.rfind("}") + 1
-        if json_start != -1 and json_end != -1:
-            try:
-                parsed = json.loads(out_str[json_start:json_end])
-                return parsed
-            except json.JSONDecodeError:
-                # Fallback: sometimes LLMs return single-quoted Python dicts
-                try:
-                    parsed = ast.literal_eval(out_str[json_start:json_end])
-                    return parsed
-                except Exception:
-                    logger.exception("Failed to parse agent output via both json and ast")
-                    return {"error": "failed_to_parse_agent_output", "raw_output": out_str}
-            except Exception:
-                logger.exception("Failed to parse agent JSON output")
-                return {"error": "failed_to_parse_agent_output", "raw_output": out_str}
+        parsed = extract_json_from_text(out_str)
+        if parsed:
+            return parsed
 
-        # Fallback: return raw agent output
-        return {"error": "no_json_in_agent_output", "raw_output": out_str}
+        # Fallback/Error if extraction failed
+        logger.error("Could not find valid JSON structure in agent output.")
+        return {"error": "failed_to_parse_agent_output", "raw_output": out_str}
 
 
 # -------------------- Endpoints --------------------
@@ -217,7 +240,7 @@ async def analyze(req: AnalyzeRequest):
         supplied_any = any([req.gemini_code, req.chatgpt_code, req.claude_code])
         if supplied_any:
             generated = {
-                "original": req.gemini_code or "",
+                "gemini": req.gemini_code or "",
                 "chatgpt": req.chatgpt_code or "",
                 "claude": req.claude_code or "",
             }
@@ -227,7 +250,7 @@ async def analyze(req: AnalyzeRequest):
         similarity = system.check_plagiarism(
             user_code=req.user_code,
             question=req.question,
-            generated_code_original=generated.get("original"),
+            generated_code_gemini=generated.get("gemini"),
             generated_code_chatgpt=generated.get("chatgpt"),
             generated_code_claude=generated.get("claude"),
             language=req.language,
@@ -243,43 +266,4 @@ async def analyze(req: AnalyzeRequest):
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("/analyze failed")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-        # If the client supplied any generated codes, use those values (avoid regenerating all three).
-        # Only call the LLM generation when none of the codes were supplied.
-        supplied_any = any([
-            bool(request.gemini_code),
-            bool(request.chatgpt_code),
-            bool(request.claude_code),
-        ])
-
-        if supplied_any:
-            generated_codes = {
-                "original": request.gemini_code or "",
-                "chatgpt": request.chatgpt_code or "",
-                "claude": request.claude_code or "",
-            }
-        else:
-            generated_codes = plagiarism_system.generate_code_solution(request.question, request.language)
-
-        similarity = plagiarism_system.check_plagiarism(
-            user_code=request.user_code,
-            question=request.question,
-            generated_code_original=generated_codes.get("original") or generated_codes.get("gemini"),
-            generated_code_chatgpt=generated_codes.get("chatgpt"),
-            generated_code_claude=generated_codes.get("claude"),
-            language=request.language,
-        )
-
-        response = {
-            "question": request.question,
-            "language": request.language,
-            "user_code": request.user_code,
-            "generated_codes": generated_codes,
-            "similar_lines": similarity,
-        }
-
-        return JSONResponse(content=response)
-    except Exception as e:
-        print(f"Error during analysis: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})

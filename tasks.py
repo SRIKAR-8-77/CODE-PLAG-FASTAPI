@@ -28,7 +28,7 @@ Requirements:
 
 def create_plagiarism_detection_task(
     user_code: str,
-    generated_code_original: str,
+    generated_code_gemini: str,
     generated_code_chatgpt: str,
     generated_code_claude: str,
     question: str,
@@ -52,7 +52,7 @@ User-Submitted Code:
 ---
 Gemini Generated Code:
 ```{language_tag}
-{generated_code_original}
+{generated_code_gemini}
 ```
 ---
 ChatGPT-style Generated Code:
@@ -87,20 +87,12 @@ If no similarities are found for a comparison, return an empty list for that key
 Example for one match: {{"user_line_number": 5, "ai_line_number": 4, "line_content": "for i in range(n):"}}
 """,
         agent=plagiarism_detector_agent,
-        expected_output="""A JSON object string with the structure:
+        expected_output="""STRICT JSON ONLY. No markdown blocks, no fluff, no conversational text.
+Return a valid JSON object with exactly these keys: "gemini_vs_user", "chatgpt_vs_user", "claude_vs_user".
+Example:
 {
-  "gemini_vs_user": [
-    { "user_line_number": <int>, "ai_line_number": <int>, "line_content": "<str>" },
-    ...
-  ],
-  "chatgpt_vs_user": [
-    { "user_line_number": <int>, "ai_line_number": <int>, "line_content": "<str>" },
-    ...
-  ],
-  "claude_vs_user": [
-    { "user_line_number": <int>, "ai_line_number": <int>, "line_content": "<str>" },
-    ...
-  ]
-}
-"""
+  "gemini_vs_user": [{"user_line_number": 1, "ai_line_number": 2, "line_content": "print('hello')"}],
+  "chatgpt_vs_user": [],
+  "claude_vs_user": []
+}"""
     )

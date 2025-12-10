@@ -54,10 +54,10 @@ def call_generate_endpoint(question: str, language: str):
         print("✓ Generation successful.")
         
         # Log generated code snippets (first few lines)
-        for key, code in data['generated_codes'].items():
+        for key, code in data.get('generated_codes', {}).items():
             print(f"  > {key.upper()} Code starts with: {''.join(code.splitlines()[:1])}...")
             
-        return data['generated_codes']
+        return data.get('generated_codes')
     
     except requests.exceptions.RequestException as e:
         print(f"✗ ERROR in /generate request: {e}", file=sys.stderr)
