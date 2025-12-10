@@ -25,6 +25,7 @@ This file is intentionally simple and readable to aid debugging and testing.
 import os
 import re
 import json
+import ast
 import logging
 from typing import Optional, Dict
 
@@ -177,6 +178,14 @@ class PlagiarismCheckSystem:
             try:
                 parsed = json.loads(out_str[json_start:json_end])
                 return parsed
+            except json.JSONDecodeError:
+                # Fallback: sometimes LLMs return single-quoted Python dicts
+                try:
+                    parsed = ast.literal_eval(out_str[json_start:json_end])
+                    return parsed
+                except Exception:
+                    logger.exception("Failed to parse agent output via both json and ast")
+                    return {"error": "failed_to_parse_agent_output", "raw_output": out_str}
             except Exception:
                 logger.exception("Failed to parse agent JSON output")
                 return {"error": "failed_to_parse_agent_output", "raw_output": out_str}
