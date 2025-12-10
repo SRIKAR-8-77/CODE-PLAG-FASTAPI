@@ -1,0 +1,151 @@
+# Code Plagiarism API - Data Flow Documentation
+
+This document consolidates the input/output formats and decoding logic used in the Code Plagiarism API. Use this to understand the data schema and how the system handles parsing.
+
+## 1. /generate Endpoint
+**Method:** POST
+**Purpose:** Generate AI code variants for a given question and language.
+
+### Request Body (JSON)
+```json
+{
+    "question": "Write a function to compute the Nth Fibonacci number iteratively.",
+    "language": "C++"
+}
+```
+
+### Response Body (JSON)
+```json
+{
+    "question": "Write a function to compute the Nth Fibonacci number iteratively.",
+    "language": "C++",
+    "generated_codes": {
+        "gemini": "```cpp\n#include <iostream>\n\nlong long fibonacciIterative(int n) {\n    if (n < 0) {\n        return -1; \n    }\n    if (n == 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    long long a = 0;\n    long long b = 1;\n    long long result = 0;\n\n    for (int i = 2; i <= n; ++i) {\n        result = a + b;\n        a = b;\n        b = result;\n    }\n\n    return result;\n}\n```",
+        "chatgpt": "#include <iostream>\n\nint fibonacciIterative(int n) {\n    if (n <= 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    int a = 0;\n    int b = 1;\n    int result = 0;\n\n    for (int i = 2; i <= n; ++i) {\n        result = a + b;\n        a = b;\n        b = result;\n    }\n\n    return result;\n}",
+        "claude": "int fibonacciIterative(int n) {\n    if (n < 0) {\n        return 0;\n    }\n    if (n == 0) {\n        return 0;\n    }\n    if (n == 1) {\n        return 1;\n    }\n\n    int a = 0;\n    int b = 1;\n    int current = 0;\n\n    for (int i = 2; i <= n; ++i) {\n        current = a + b;\n        a = b;\n        b = current;\n    }\n\n    return current;\n}"
+    }
+}
+```
+
+---
+
+## 2. /analyze Endpoint
+**Method:** POST
+**Purpose:** Analyze user submitted code against AI generated codes for plagiarism.
+
+### Request Body (JSON)
+```json
+{
+    "question": "Write a function to compute the Nth Fibonacci number iteratively.",
+    "language": "C++",
+    "user_code": "\nint fibonacci(int n) {\n    if (n <= 1) {\n        return n;\n    }\n    int a = 0;\n    int b = 1;\n    for (int i = 2; i <= n; i++) {\n        int temp = a + b;\n        a = b;\n        b = temp;\n    }\n    return b;\n}\n",
+    "gemini_code": "```cpp\n#include <iostream>\n\nlong long fibonacciIterative(int n) {\n...\n}\n```",
+    "chatgpt_code": "#include <iostream>\n...",
+    "claude_code": "int fibonacciIterative(int n) {\n...\n}"
+}
+```
+
+### Response Body (JSON)
+```json
+{
+    "question": "Write a function to compute the Nth Fibonacci number iteratively.",
+    "language": "C++",
+    "user_code": "...",
+    "generated_codes": {
+        "gemini": "...",
+        "chatgpt": "...",
+        "claude": "..."
+    },
+    "similar_lines": {
+        "gemini_vs_user": [
+            {
+                "user_line_number": 4,
+                "ai_line_number": 8,
+                "line_content": "}"
+            },
+            {
+                "user_line_number": 9,
+                "ai_line_number": 22,
+                "line_content": "a = b;"
+            }
+        ],
+        "chatgpt_vs_user": [
+            {
+                "user_line_number": 5,
+                "ai_line_number": 11,
+                "line_content": "int a = 0;"
+            }
+        ],
+        "claude_vs_user": []
+    }
+}
+```
+
+---
+
+## 3. Decoding Format and Internal Logic
+This section describes how the API parses inputs and handles the AI agent's raw output.
+
+### Pydantic Models (Input Validation)
+The API uses Pydantic to strictly validate incoming JSON requests.
+
+```python
+class GenerateRequest(BaseModel):
+    question: str
+    language: str
+
+
+class AnalyzeRequest(BaseModel):
+    question: str
+    language: str
+    user_code: str
+    gemini_code: Optional[str] = None
+    chatgpt_code: Optional[str] = None
+    claude_code: Optional[str] = None
+```
+
+### Robust JSON Extraction (Output Parsing)
+Because LLMs (like the plagiarism detection agent) may occasionally return conversational text or markdown before the actual JSON, we use a custom extraction function. This function:
+1.  Searches for a specific key (`gemini_vs_user`) to locate the start of the JSON block, ignoring preambles.
+2.  Tries to parse using the standard `json` library first.
+3.  Falls back to `ast.literal_eval` to handle Python-style single-quoted dictionaries if strict JSON parsing fails.
+
+```python
+import re
+import json
+import ast
+
+def extract_json_from_text(text: str) -> Optional[dict]:
+    """
+    Robustly extract a JSON object from text that may contain markdown or other noise.
+    """
+    # 1. Search for the start of the JSON object by looking for one of the specific keys we expect.
+    match = re.search(r"\{\s*[\"']gemini_vs_user[\"']", text)
+    if not match:
+        # Fallback: look for just a brace if generic
+        match = re.search(r"\{", text)
+
+    if match:
+        json_start = match.start()
+        
+        # Attempt 1: Standard JSON decoder (raw_decode handles trailing text)
+        try:
+            decoder = json.JSONDecoder()
+            parsed, _ = decoder.raw_decode(text, idx=json_start)
+            return parsed
+        except json.JSONDecodeError:
+            pass
+
+        # Attempt 2: ast.literal_eval (for single quotes or Python-like dicts)
+        # We need a rough end point. Last closing brace is a good guess.
+        json_end = text.rfind("}") + 1
+        if json_end > json_start:
+            candidate = text[json_start:json_end]
+            try:
+                parsed = ast.literal_eval(candidate)
+                return parsed
+            except Exception:
+                pass
+    
+    return None
+```

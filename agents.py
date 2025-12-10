@@ -25,6 +25,7 @@ code_generator_agent = Agent(
     backstory=(
         "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
+        "generate codes like a competitive progrmmar"
     ),
     llm=gemini_llm,
     verbose=True,
@@ -38,6 +39,7 @@ chatgpt_generator_agent = Agent(
     backstory=(
         "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
+        "generate codes like a competitive progrmmar"
     ),
     llm=gemini_llm,
     verbose=True,
@@ -51,6 +53,7 @@ claude_generator_agent = Agent(
     backstory=(
         "You are a code generator. You write simple, functional code. " # Updated: Removed "Python"
         "You NEVER add comments. You just write the code."
+        "generate codes like a competitive progrmmar"
     ),
     llm=gemini_llm,
     verbose=True,
